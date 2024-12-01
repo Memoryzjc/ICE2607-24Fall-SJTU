@@ -1,0 +1,7 @@
+*.zip
+*.mypy_cache
+*.code-workspace
+test*.py
+/test
+lab*/test
+lab*/523030910022_郑钧澄_lab*

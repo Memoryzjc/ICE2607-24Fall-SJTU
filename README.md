@@ -1,2 +1,2 @@
-# ICE2607-24Fall-SJTU
-This is a repo for course ICE2607 in SJTU.
+# ICE2607-24Fall
+This is a repo for the ICE2607 in SJTU.
