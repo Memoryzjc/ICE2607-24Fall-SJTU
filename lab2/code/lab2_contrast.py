@@ -33,10 +33,6 @@ def gradients(img, op='sobel'):
 def interpolate(M1, M2, w):
     # Calculate the interpolated value
     return M1 * w + M2 * (1 - w)
-    # if (M1 > M2):
-    #     return w * M1 + (1 - w) * M2
-    # else:
-    #     return w * M1 + (1 - w) * M2
 
 def non_max_suppression_interpolated(magnitude, angle):
     # Non-maximum suppression with interpolation
@@ -198,7 +194,7 @@ if __name__ == '__main__':
     imgs_path = os.path.join(current_working_dir, 'img')
 
     # Make output directory
-    output_path = os.path.join(current_working_dir, 'output')
+    output_path = os.path.join(current_working_dir, 'output_contrast')
     os.makedirs(output_path, exist_ok=True)
 
     # Iterate over the images
@@ -211,34 +207,11 @@ if __name__ == '__main__':
 
     for index, i in enumerate(imgs):
         img = cv2.imread(os.path.join(imgs_path, i))
-        edges_low = canny_edge_detection(img, low_threshold=l_th, high_threshold=h_th)
-        edges_interpolated = canny_edge_detection_interpolated(img, low_threshold=l_th, high_threshold=h_th)
-        edge = cv2.Canny(img, l_th, h_th)
-
-        plt.figure(figsize=(15, 6))
-        plt.subplot(1, 3, 1)
-        plt.imshow(edges_low, cmap='gray')
-        plt.title('Canny Edge Detection-My Implementation')
-        plt.axis('off')
-
-        plt.subplot(1, 3, 2)
-        plt.imshow(edges_interpolated, cmap='gray')
-        plt.title('Canny Edge Detection-Interpolated')
-        plt.axis('off')
-
-        plt.subplot(1, 3, 3)
-        plt.imshow(edge, cmap='gray')
-        plt.title('Canny Edge Detection-OpenCV')
-        plt.axis('off')
-
-        plt.suptitle(f'Canny Edge Detection Comparison-High Threshold: {h_th}, Ratio: {ratio}-image:{index+1}')
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_path, f'canny_edge_detection_image{index+1}_HighThreshold_{h_th}_Ratio_{ratio}.png'))
-        plt.close()
 
         sobel_edge = canny_edge_detection(img, low_threshold=l_th, high_threshold=h_th, op='sobel')
         scharr_edge = canny_edge_detection(img, low_threshold=l_th, high_threshold=h_th, op='scharr')
         laplacian_edge = canny_edge_detection(img, low_threshold=l_th, high_threshold=h_th, op='laplacian')
+
         plt.figure(figsize=(15, 6))
         plt.subplot(1, 3, 1)
         plt.imshow(sobel_edge, cmap='gray')
@@ -258,3 +231,59 @@ if __name__ == '__main__':
         plt.suptitle(f'Canny Edge Detection Comparison-Graident Operator(High Threshold: {h_th}, Ratio: {ratio}-image:{index+1})')
         plt.tight_layout()
         plt.savefig(os.path.join(output_path, f'canny_edge_detection_image{index+1}_HighThreshold_{h_th}_Ratio_{ratio}_GradientOperator.png'))
+        plt.close()
+
+    # Different high threshold and ratio
+    high_thresholds = [140, 150, 160]
+    ratios = [0.4, 0.45, 0.5]
+
+    img = cv2.imread(os.path.join(imgs_path, '1.jpg'))
+
+    h_th_150_r_04 = canny_edge_detection(img, low_threshold=int(0.4 * 150), high_threshold=150)
+    h_th_150_r_045 = canny_edge_detection(img, low_threshold=int(0.45 * 150), high_threshold=150)
+    h_th_150_r_05 = canny_edge_detection(img, low_threshold=int(0.5 * 150), high_threshold=150)
+
+    plt.figure(figsize=(15, 6))
+    plt.subplot(1, 3, 1)
+    plt.imshow(h_th_150_r_04, cmap='gray')
+    plt.title('Canny Edge Detection-High Threshold: 150, Ratio: 0.4')
+    plt.axis('off')
+
+    plt.subplot(1, 3, 2)
+    plt.imshow(h_th_150_r_045, cmap='gray')
+    plt.title('Canny Edge Detection-High Threshold: 150, Ratio: 0.45')
+    plt.axis('off')
+
+    plt.subplot(1, 3, 3)
+    plt.imshow(h_th_150_r_05, cmap='gray')
+    plt.title('Canny Edge Detection-High Threshold: 150, Ratio: 0.5')
+    plt.axis('off')
+
+    plt.suptitle(f'Canny Edge Detection Comparison-High Threshold: 150, Ratio: 0.4, 0.45, 0.5')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_path, f'canny_edge_detection_image1_HighThreshold_150_Ratio_04_045_05.png'))
+    plt.close()
+
+    h_th_140_r_045 = canny_edge_detection(img, low_threshold=int(0.45 * 140), high_threshold=140)
+    h_th_160_r_045 = canny_edge_detection(img, low_threshold=int(0.45 * 160), high_threshold=160)
+
+    plt.figure(figsize=(15, 6))
+    plt.subplot(1, 3, 1)
+    plt.imshow(h_th_140_r_045, cmap='gray')
+    plt.title('Canny Edge Detection-High Threshold: 140, Ratio: 0.45')
+    plt.axis('off')
+
+    plt.subplot(1, 3, 2)
+    plt.imshow(h_th_150_r_045, cmap='gray')
+    plt.title('Canny Edge Detection-High Threshold: 150, Ratio: 0.45')
+    plt.axis('off')
+    
+    plt.subplot(1, 3, 3)
+    plt.imshow(h_th_160_r_045, cmap='gray')
+    plt.title('Canny Edge Detection-High Threshold: 160, Ratio: 0.45')
+    plt.axis('off')
+
+    plt.suptitle(f'Canny Edge Detection Comparison-High Threshold: 140, 150, 160, Ratio: 0.45')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_path, f'canny_edge_detection_image1_HighThreshold_140_150_160_Ratio_04.png'))
+    plt.close()

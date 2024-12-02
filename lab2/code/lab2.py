@@ -13,30 +13,24 @@ def sobel_gradients(img):
     grad_y_abs = cv2.convertScaleAbs(grad_y)
 
     # Convert the gradients to float32
-    grad_x_abs = np.float32(grad_x_abs)
-    grad_y_abs = np.float32(grad_y_abs)
+    grad_x_abs = np.uint16(grad_x_abs)
+    grad_y_abs = np.uint16(grad_y_abs)
 
     # Calculate the magnitude of the gradients and the angle
     magnitude = np.sqrt(grad_x_abs**2 + grad_y_abs**2)
     angle = np.arctan2(grad_y, grad_x)
+    angle = np.rad2deg(angle) % 180
 
     return magnitude, angle
 
 def interpolate(M1, M2, w):
     # Calculate the interpolated value
     return M1 * w + M2 * (1 - w)
-    # if (M1 > M2):
-    #     return w * M1 + (1 - w) * M2
-    # else:
-    #     return w * M1 + (1 - w) * M2
 
 def non_max_suppression_interpolated(magnitude, angle):
     # Non-maximum suppression with interpolation
     rows, cols = magnitude.shape
     suppressed_interpolated = np.zeros((rows, cols), dtype=np.float32)
-
-    # Preprocess the angle
-    angle = np.rad2deg(angle) % 180
 
     # Interpolated
     for i in range(1, rows - 1):
@@ -87,7 +81,6 @@ def non_max_suppression(magnitude, angle):
     # Non-maximum suppression
     M, N = magnitude.shape
     suppressed = np.zeros((M, N), dtype=np.float32)
-    angle = np.rad2deg(angle) % 180
 
     for i in range(1, M - 1):
         for j in range(1, N - 1):
@@ -162,7 +155,7 @@ def canny_edge_detection(img, low_threshold, high_threshold):
     return edges
 
 def canny_edge_detection_interpolated(img, low_threshold, high_threshold):
-    # Canny edge detection algorithm
+    # Canny edge detection algorithm with interpolataion
     # Convert the image to grayscale
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -175,6 +168,7 @@ def canny_edge_detection_interpolated(img, low_threshold, high_threshold):
     # Non-maximum suppression
     suppressed = non_max_suppression_interpolated(magnitude, angles)
     plt.figure()
+
     # Double threshold
     thresholded, weak, strong = double_threshold(suppressed, low_threshold, high_threshold)
 
@@ -197,8 +191,8 @@ if __name__ == '__main__':
     imgs = ('1.jpg', '2.jpg', '3.jpg')
 
     # Set the high threshold and the ratio
-    h_th = 155
-    ratio = 0.45
+    h_th = 150
+    ratio = 0.4
     l_th = int(ratio * h_th)
 
     for index, i in enumerate(imgs):
