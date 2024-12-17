@@ -236,7 +236,7 @@ def main(ratio_threshold=0.75, levels=3, scale_factor=0.3, block_size=2, ksize=3
         plt.imshow(cv2.cvtColor(result_image, cv2.COLOR_BGR2RGB))
         plt.title("Best Match")
         plt.axis('off')
-        plt.savefig(os.path.join(cwd, 'output', 'my_match_other.png'))
+        plt.savefig(os.path.join(cwd, 'output', 'my_match.png'))
         plt.close()
     else:
         print("未找到匹配的图像")
