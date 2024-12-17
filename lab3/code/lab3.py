@@ -186,7 +186,6 @@ def main(ratio_threshold=0.75, levels=3, scale_factor=0.3, block_size=2, ksize=3
         return
 
     # 提取目标图像的特征点和描述子
-    # target_keypoints = harris_corner_detection(target_image)
     target_keypoints = multi_scale_harris_corner_detection(target_image, levels=levels, scale_factor=scale_factor, block_size=block_size, ksize=ksize, k=k, threshold_ratio=threshold_ratio)
     target_descriptors = compute_sift_descriptors(target_image, target_keypoints)
 
@@ -194,8 +193,7 @@ def main(ratio_threshold=0.75, levels=3, scale_factor=0.3, block_size=2, ksize=3
     best_match_keypoints = None
     best_match_descriptors = None
     best_matches = []
-    best_score1 = float('inf')
-    best_score2 = 0
+    best_score = 0
 
     # 遍历数据集中的所有图片
     for i in range(1, 6):  # 数据集中有5张图片
@@ -211,26 +209,18 @@ def main(ratio_threshold=0.75, levels=3, scale_factor=0.3, block_size=2, ksize=3
         # 匹配特征点
         # 平均距离作为分数
         matches = match_features(target_descriptors, search_descriptors, ratio_threshold=ratio_threshold)
-        score1 = np.mean([m[2] for m in matches]) 
-        if score1 < best_score1:
-            best_score1 = score1
-            # best_match_image = search_image
-            # best_match_keypoints = search_keypoints
-            # best_match_descriptors = search_descriptors
-            # best_matches = matches
-        print(score1)
 
         # 匹配特征点-使用BFMatcher
-        # 匹配的数量作为分数
         # matches = match_features_BFMatcher(target_descriptors, search_descriptors, ratio_threshold=ratio_threshold)
-        score2 = len(matches)
-        if score2 > best_score2:
-            best_score2 = score2
+        # 匹配的数量作为分数
+        score = len(matches)
+        if score > best_score:
+            best_score = score
             best_match_image = search_image
             best_match_keypoints = search_keypoints
             best_match_descriptors = search_descriptors
             best_matches = matches
-        print(score2)
+        print(score)
 
     # 绘制最佳匹配结果
     if best_match_image is not None:
@@ -238,9 +228,6 @@ def main(ratio_threshold=0.75, levels=3, scale_factor=0.3, block_size=2, ksize=3
             best_match_image, best_match_keypoints,
             target_image, target_keypoints,
             [cv2.DMatch(_queryIdx=m[1], _trainIdx=m[0], _imgIdx=0, _distance=m[2]) for m in best_matches],
-            # target_image, target_keypoints,
-            # best_match_image, best_match_keypoints,
-            # best_matches,
             None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
         )
         
