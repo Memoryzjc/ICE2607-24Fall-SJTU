@@ -1,183 +1,55 @@
-import cv2
-import numpy as np
-from collections import defaultdict
 import os
-from pathlib import Path
+from Matcher import LSHMatcher, NNMatcher
 
-class ImageLSH:
-    def __init__(self, projection_sets):
-        """
-        初始化LSH
-        projection_sets: List[ List[ int]], 投影集合的列表
-        """
-        self.projection_sets = projection_sets
-        self.hash_tables = [defaultdict(list) for _ in range(len(projection_sets))]
-        
-    def compute_color_histogram(self, image):
-        """
-        计算12维颜色直方图特征
-        将图像分为4个区域，每个区域计算3维颜色直方图
-        """
-        # 将图像调整为相同大小以确保一致性
-        image = cv2.resize(image, (200, 200))
-        
-        # 将图像分为2x2的四个区域
-        h, w = image.shape[:2]
-        mid_h, mid_w = h//2, w//2
-        regions = [
-            image[0:mid_h, 0:mid_w],      # 左上
-            image[0:mid_h, mid_w:w],      # 右上
-            image[mid_h:h, 0:mid_w],      # 左下
-            image[mid_h:h, mid_w:w]       # 右下
-        ]
-        
-        # 对每个区域计算3维颜色直方图
-        hist_features = []
-        for region in regions:
-            # 计算颜色直方图
-            b, g, r = cv2.split(region)
-            b_energy = np.sum(b)
-            g_energy = np.sum(g)
-            r_energy = np.sum(r)
-            total_energy = b_energy + g_energy + r_energy
-            hist = [b_energy/total_energy, g_energy/total_energy, r_energy/total_energy]
-            hist_features.extend(hist)
-            
-        return np.array(hist_features)
-    
-    def _quantize_feature(self, feature):
-        """
-        将特征向量量化为0,1,2三个值
-        """
-        quantized = np.zeros_like(feature)
-        quantized[feature > 0.6] = 2
-        quantized[(feature >= 0.3) & (feature <= 0.6)] = 1
-        return quantized
-    
-    def _hash_vector(self, feature, projection):
-        """
-        计算特征向量在某个投影集合上的哈希值
-        """
-        quantized = self._quantize_feature(feature)
-        hamming = []
-        
-        # 计算Hamming码
-        for i in range(len(quantized)):
-            match quantized[i]:
-                case 0:
-                    hamming.extend([0, 0])
-                case 1:
-                    hamming.extend([1, 0])
-                case 2:
-                    hamming.extend([1, 1])
+def analyze_projection_set(projection_sets, database_path, target_path, query_image_path, output_path):
+    print("分析投影集合的影响：")
+    for i, projection_set in enumerate(projection_sets):
+        print(f"第{i+1}个投影集合：")
 
-        hamming = np.array(hamming)
-        projected = hamming[projection]
-        return tuple(projected)
+        # LSH
+        lsh = LSHMatcher(projection_set)
+        lsh.index_images(database_path)
+        results, query_time_LSH = lsh.query_image(query_image_path, k=1)
+        lsh.visualize_results(query_image_path, results, save_path=os.path.join(output_path, f"lsh_results_{i+1}.jpg"))
+
+        # NN
+        matcher = NNMatcher()
+        matcher.index_images(database_path)
+        matcher_results, query_time_NN = matcher.query_image(query_image_path, k=1)
+        matcher.visualize_results(query_image_path, matcher_results, save_path=os.path.join(output_path, f"nn_results_{i+1}.jpg"))
+
+        print(f"运行时间：")
+        print(f"LSH: {query_time_LSH} s")
+        print(f"NN: {query_time_NN} s")
+
+        with open(os.path.join(output_path, f"time_projection_set_size.txt"), "a") as f:
+            f.write(f"No.{i+1} Projection set: \n")
+            f.write(f"LSH: {query_time_LSH} s\n")
+            f.write(f"NN: {query_time_NN} s\n")
+
+def analyze_time(projection_set, max_iter, database_path, target_path, query_image_path, output_path):
+    print("分析运行时间：")
+    LSH_time = 0
+    NN_time = 0
+    for i in range(max_iter):
+        # LSH
+        lsh = LSHMatcher(projection_set)
+        lsh.index_images(database_path)
+        results, query_time_LSH = lsh.query_image(query_image_path, k=1)
+        LSH_time += query_time_LSH
+
+        # NN
+        matcher = NNMatcher()
+        matcher.index_images(database_path)
+        matcher_results, query_time_NN = matcher.query_image(query_image_path, k=1)
+        NN_time += query_time_NN
     
-    def index_images(self, image_dir):
-        """
-        为图像目录建立索引
-        """
-        self.image_paths = []
-        features = []
-        
-        # 遍历图像目录
-        for img_path in Path(image_dir).glob('*'):
-            if img_path.suffix.lower() in ['.jpg']:
-                try:
-                    # 读取图像
-                    img = cv2.imread(str(img_path))
-                    if img is None:
-                        continue
-                        
-                    # 计算特征
-                    feature = self.compute_color_histogram(img)
-                    
-                    # 存储图像路径和特征
-                    self.image_paths.append(str(img_path))
-                    features.append(feature)
-                except Exception as e:
-                    print(f"Error processing {img_path}: {e}")
-                    
-        # 建立索引
-        for idx, feature in enumerate(features):
-            for table_id, projection in enumerate(self.projection_sets):
-                hash_val = self._hash_vector(feature, projection)
-                self.hash_tables[table_id][hash_val].append((idx, feature))
-    
-    def query_image(self, query_img_path, k=1):
-        """
-        查询与输入图像最相似的k张图像
-        """
-        # 读取查询图像
-        query_img = cv2.imread(query_img_path)
-        if query_img is None:
-            raise ValueError("Cannot read query image")
-            
-        # 计算查询图像的特征
-        query_feature = self.compute_color_histogram(query_img)
-        
-        # 在哈希表中查找候选项
-        candidates = []  # 改用列表而不是集合
-        seen_indices = set()  # 用于追踪已经见过的索引
-        
-        # 在每个哈希表中查找
-        for table_id, projection in enumerate(self.projection_sets):
-            hash_val = self._hash_vector(query_feature, projection)
-            # 获取该哈希值对应的所有候选项
-            for idx, feature in self.hash_tables[table_id][hash_val]:
-                # 只添加还没见过的索引
-                if idx not in seen_indices:
-                    candidates.append((idx, feature))
-                    seen_indices.add(idx)
-                
-        if not candidates:
-            return []
-            
-        # 计算距离并排序
-        distances = []
-        for idx, feature in candidates:
-            dist = np.sum((feature - query_feature) ** 2)
-            distances.append((dist, idx))
-            
-        # 返回最相似的k张图像的路径
-        distances.sort()
-        return [self.image_paths[idx] for _, idx in distances[:k]]
-    
-    def visualize_results(self, query_img_path, result_paths, save_path=None):
-        """
-        可视化查询结果
-        """
-        # 读取并调整查询图像大小
-        query_img = cv2.imread(query_img_path)
-        query_img = cv2.resize(query_img, (200, 200))
-        
-        # 读取并调整结果图像大小
-        result_imgs = []
-        for path in result_paths:
-            img = cv2.imread(path)
-            img = cv2.resize(img, (200, 200))
-            result_imgs.append(img)
-            
-        # 创建展示图像
-        n_results = len(result_imgs)
-        display_img = np.zeros((200, 200 * (n_results + 1), 3), dtype=np.uint8)
-        
-        # 放置查询图像
-        display_img[:, :200] = query_img
-        
-        # 放置结果图像
-        for i, img in enumerate(result_imgs):
-            display_img[:, (i+1)*200:(i+2)*200] = img
-            
-        # 显示或保存结果
-        if save_path:
-            cv2.imwrite(save_path, display_img)
-        else:
-            cv2.imshow('Query Results', display_img)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+    LSH_time /= max_iter
+    NN_time /= max_iter
+
+    print(f"平均运行时间：")
+    print(f"LSH: {LSH_time} s")
+    print(f"NN: {NN_time} s")
 
 if "__main__" == __name__:
     # 定义投影集合
@@ -188,21 +60,184 @@ if "__main__" == __name__:
         [2, 5, 8, 11, 12, 20]    # 第三个投影集合
     ]
 
+    projection_sets_size = [
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+        ],
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1],
+        ],
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            [10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+            [20, 21, 22, 23, 0, 1, 2, 3, 4, 5]
+        ],
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7, 8],
+            [9, 10, 11, 12, 13, 14, 15, 16, 17],
+            [18, 19, 20, 21, 22, 23, 0, 1, 2]
+        ],
+        [
+            [0, 3, 6, 9, 23, 19, 13],
+            [1, 4, 7, 10, 16, 17, 14],
+            [2, 5, 8, 11, 12, 20, 15]
+        ],
+        [
+            [0, 3, 6, 9, 23, 19],
+            [1, 4, 7, 10, 16, 17],
+            [2, 5, 8, 11, 12, 20]
+        ],
+        [
+            [0, 3, 6, 9, 23],
+            [1, 4, 7, 10, 16],
+            [2, 5, 8, 11, 12]
+        ],
+        [
+            [0, 3, 6, 9],
+            [1, 4, 7, 10],
+            [2, 5, 8, 11]
+        ],
+        [
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8]
+        ],
+        [
+            [0, 3],
+            [1, 4],
+            [2, 5]
+        ],
+        [
+            [0],
+            [1],
+            [2]
+        ],
+        [
+            [0],
+            [1]
+        ],
+        [
+            [0]
+        ]
+    ]
+
+    projection_sets_index = [
+        [
+            [0, 1, 2, 3, 4],
+            [5, 6, 7, 8, 9],
+            [10, 11, 12, 13, 14],
+            [15, 16, 17, 18, 19],
+            [20, 21, 22, 23, 0]
+        ],
+        [
+            [0, 3, 6, 9, 12],
+            [1, 4, 7, 10, 13],
+            [2, 5, 8, 11, 14],
+            [15, 18, 21, 0, 16],
+            [19, 22, 20, 23, 17]
+        ],
+        [
+            [0, 23, 22, 21, 20],
+            [19, 18, 17, 16, 15],
+            [14, 13, 12, 11, 10],
+            [9, 8, 7, 6, 5],
+            [4, 3, 2, 1, 0]
+        ], 
+        [
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 9],
+            [10, 11, 12],
+            [13, 14, 15],
+            [16, 17, 18],
+            [19, 20, 21],
+            [22, 23, 0]
+        ],
+        [
+            [0, 1],
+            [2, 3],
+            [4, 5],
+            [6, 7],
+            [8, 9],
+            [10, 11],
+            [12, 13],
+            [14, 15],
+            [16, 17],
+            [18, 19],
+            [20, 21],
+            [22, 23],
+        ],
+        [
+            [0],
+            [1],
+            [2],
+            [3],
+            [4],
+            [5],
+            [6],
+            [7],
+            [8],
+            [9],
+            [10],
+            [11],
+            [12],
+            [13],
+            [14],
+            [15],
+            [16],
+            [17],
+            [18],
+            [19],
+            [20],
+            [21],
+            [22],
+            [23],
+        ]
+    ]
+
     # 设置路径
     path_to_dir = os.path.dirname(__file__)
     path_to_database = os.path.join(path_to_dir, "img")
     path_to_target = os.path.join(path_to_dir, "target.jpg")
-
-    # 创建LSH实例
-    lsh = ImageLSH(projection_sets)
-
-    # 建立图像数据库索引
+    
     image_dir = path_to_database
-    lsh.index_images(image_dir)
-
-    # 查询图像
     query_image_path = path_to_target
-    results = lsh.query_image(query_image_path, k=1)
+    
+    output = os.path.join(path_to_dir, "output")
+    os.makedirs(output, exist_ok=True)
 
+    # LSH
+    # 创建LSH实例
+    lsh = LSHMatcher(projection_sets)
+    # 建立图像数据库索引
+    lsh.index_images(image_dir)
+    # 查询图像
+    results, query_time_LSH = lsh.query_image(query_image_path, k=1)
     # 可视化结果
-    lsh.visualize_results(query_image_path, results)
+    lsh.visualize_results(query_image_path, results, save_path=os.path.join(output, "lsh_results.jpg"))
+
+    # NN
+    # 创建Matcher实例
+    matcher = NNMatcher()
+    # 建立图像数据库索引
+    matcher.index_images(image_dir)
+    # 查询图像
+    matcher_results, query_time_NN = matcher.query_image(query_image_path, k=1)
+    # 可视化结果
+    matcher.visualize_results(query_image_path, matcher_results, save_path=os.path.join(output, "nn_results.jpg"))
+
+    print("运行时间：")
+    with open(os.path.join(output, "time.txt"), "w") as f:
+        f.write(f"LSH: {query_time_LSH} s\n")
+        f.write(f"NN: {query_time_NN} s\n")
+    print(f"LSH: {query_time_LSH} s")
+    print(f"NN: {query_time_NN} s")
+    print("结果已保存至output文件夹")
+
+    # 分析投影集合的影响
+    analyze_projection_set(projection_sets_size, image_dir, path_to_target, query_image_path, output)
+
+    # # 分析运行时间
+    # N = 1000
+    # analyze_time(projection_sets, N, image_dir, path_to_target, query_image_path, output)
