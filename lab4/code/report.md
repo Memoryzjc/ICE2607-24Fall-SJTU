@@ -322,11 +322,17 @@ def query_image(self, query_img_path, k=1):
 
 * LSH算法查询结果：
     1. 搜索时间：0.0008852481842041016 s
-    2. 查询结果：![](../code/output/lsh_results.jpg)
-
+    
+    2. 查询结果：
+    
+       ![](../code/output/lsh_results.jpg)
+    
 * NN算法查询结果：
     1. 搜索时间：0.0006673336029052734 s
-    2. 查询结果：![](../code/output/nn_results.jpg)
+    
+    2. 查询结果：
+    
+       ![](../code/output/nn_results.jpg)
 
 ### 3.2 实验分析
 
